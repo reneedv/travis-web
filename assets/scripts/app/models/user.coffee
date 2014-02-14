@@ -11,7 +11,7 @@ require 'travis/model'
   syncedAt:    Ember.attr('string')
   repoCount:   Ember.attr('number')
 
-  # This is the only way I found to override the attribue created with Ember.attr
+  # This is the only way I found to override the attribute created with Ember.attr
   name: Ember.computed( (key, value) ->
     if arguments.length == 1
       @get('_name') || @get('login')
