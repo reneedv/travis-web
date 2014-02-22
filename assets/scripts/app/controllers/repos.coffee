@@ -16,10 +16,13 @@ Travis.ReposController = Ember.ArrayController.extend
   ).observes('currentUser.id')
 
   tabOrIsLoadedDidChange: (->
+    @possiblyRedirectToGettingStartedPage()
+  ).observes('isLoaded', 'tab', 'length')
+
+  possiblyRedirectToGettingStartedPage: ->
     Ember.run.scheduleOnce 'routerTransitions', this, ->
       if @get('tab') == 'owned' && @get('isLoaded') && @get('length') == 0
-        @container.lookup('router:main').send('renderNoOwnedRepos')
-  ).observes('isLoaded', 'tab', 'length')
+        @container.lookup('router:main').send('redirectToGettingStarted')
 
   isLoadedBinding: 'content.isLoaded'
   needs: ['currentUser', 'repo']
@@ -36,13 +39,14 @@ Travis.ReposController = Ember.ArrayController.extend
     Visibility.every Travis.INTERVALS.updateTimes, @updateTimes.bind(this)
 
   recentRepos: (->
-    Travis.LimitedArray.create
-      content: Em.ArrayProxy.extend(Em.SortableMixin).create(
-        sortProperties: ['sortOrder']
-        content: Travis.Repo.withLastBuild()
-        isLoadedBinding: 'content.isLoaded'
-      )
+    Ember.ArrayProxy.extend(
+      isLoadedBinding: 'repos.isLoaded'
+      repos: Travis.Repo.withLastBuild()
+      sorted: Ember.computed.sort('repos', 'sortedReposKeys')
+      content: Ember.computed.limit('sorted', 'limit')
+      sortedReposKeys: ['sortOrder:asc']
       limit: 30
+    ).create()
   ).property()
 
   updateTimes: ->

@@ -8,16 +8,6 @@ Ember.Router.reopen
     @_super(url)
 
 Travis.Route = Ember.Route.extend
-  afterSignIn: ->
-    if transition = Travis.auth.get('afterSignInTransition')
-      Travis.auth.set('afterSignInTransition', null)
-      transition.retry()
-    else
-      @transitionTo('index.current') if @constructor == Travis.AuthRoute || @constructor.superclass == Travis.AuthRoute
-
-  afterSignOut: ->
-    @transitionTo('index.current')
-
   renderFirstSync: ->
     @transitionTo 'first_sync'
 
@@ -48,6 +38,9 @@ Travis.Route = Ember.Route.extend
 
 Travis.ApplicationRoute = Travis.Route.extend
   actions:
+    redirectToGettingStarted: ->
+      # do nothing, we handle it only in index path
+
     renderDefaultTemplate: ->
       @renderDefaultTemplate() if @renderDefaultTemplate
 
@@ -59,17 +52,16 @@ Travis.ApplicationRoute = Travis.Route.extend
       else
         return true
 
-    renderNoOwnedRepos: ->
-      @transitionTo('getting_started')
-
     renderFirstSync: ->
       @renderFirstSync()
 
-    afterSignIn: (path) ->
-      @afterSignIn(path)
+    afterSignIn: ->
+      if transition = Travis.auth.get('afterSignInTransition')
+        Travis.auth.set('afterSignInTransition', null)
+        transition.retry()
 
     afterSignOut: ->
-      @afterSignOut()
+      @transitionTo('index.current')
 
 Travis.Router.reopen
   transitionTo: ->
@@ -79,6 +71,7 @@ Travis.Router.reopen
 
 Travis.Router.map ->
   @resource 'index', path: '/', ->
+    @resource 'getting_started'
     @route 'current', path: '/'
     @resource 'repo', path: '/:owner/:name', ->
       @route 'index', path: '/'
@@ -93,7 +86,6 @@ Travis.Router.map ->
     @resource 'repo.settings', path: '/:owner/:name/settings', ->
       @route 'tab', path: ':tab'
 
-  @route 'getting_started'
   @route 'first_sync'
   @route 'stats', path: '/stats'
   @route 'auth', path: '/auth'
@@ -119,19 +111,12 @@ Travis.SetupLastBuild = Ember.Mixin.create
         @render('builds/not_found', into: 'repo', outlet: 'pane')
 
 Travis.GettingStartedRoute = Travis.Route.extend
-  setupController: ->
-    $('body').attr('id', 'home')
-    @container.lookup('controller:repos').activate()
-    @container.lookup('controller:application').connectLayout 'simple'
-    @_super.apply(this, arguments)
-
   renderTemplate: ->
-    @render 'top', outlet: 'top'
-    @_super.apply(this, arguments)
+    @render('no_owned_repos')
 
 Travis.FirstSyncRoute = Travis.Route.extend
   actions:
-    renderNoOwnedRepos: (->)
+    redirectToGettingStarted: ->
       # do nothing, we are showing first sync, so it's normal that there is
       # no owned repos
 
@@ -157,11 +142,18 @@ Travis.IndexCurrentRoute = Travis.Route.extend Travis.SetupLastBuild,
     @controllerFor('repo').activate('index')
     @controllerFor('repos').addObserver('firstObject', this, 'currentRepoDidChange')
 
+  afterModel: ->
+    @controllerFor('repos').possiblyRedirectToGettingStartedPage()
+
   deactivate: ->
     @controllerFor('repos').removeObserver('firstObject', this, 'currentRepoDidChange')
 
   currentRepoDidChange: ->
     @controllerFor('repo').set('repo', @controllerFor('repos').get('firstObject'))
+
+  actions:
+    redirectToGettingStarted: ->
+      @transitionTo('getting_started')
 
 Travis.AbstractBuildsRoute = Travis.Route.extend
   renderTemplate: ->
@@ -383,6 +375,11 @@ Travis.AuthRoute = Travis.Route.extend
 
   deactivate: ->
     @controllerFor('auth').set('redirected', false)
+
+  actions:
+    afterSignIn: ->
+      @transitionTo('index.current')
+      return true
 
 Travis.RepoSettingsRoute = Travis.Route.extend
   setupController: (controller, model) ->
